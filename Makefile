@@ -1,15 +1,18 @@
-TOP = rv32_core
-TB = sim/tb_core.cpp
+TOP = regfile
 
-SRC = \
-rtl/rv32_core.sv
+RTL = \
+    rtl/core/regfile.sv
+
+TB = sim/tb_regfile.cpp
+
+CFLAGS = -Wall -O2
 
 all:
 	verilator \
-	--cc $(SRC) \
-	--exe $(TB) \
-	--build \
-	--trace
+		--cc $(RTL) \
+		--exe $(TB) \
+		--build \
+		--trace
 
 run:
 	./obj_dir/V$(TOP)
