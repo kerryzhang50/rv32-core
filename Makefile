@@ -1,15 +1,16 @@
-TOP = regfile
+TOP = alu
 
 RTL = \
-    rtl/core/regfile.sv
+    rtl/core/rv32_pkg.sv \
+    rtl/core/alu.sv
 
-TB = sim/tb_regfile.cpp
+TB = sim/tb_alu.cpp
 
 CFLAGS = -Wall -O2
 
 all:
 	verilator \
-		--cc $(RTL) \
+		--cc --top-module $(TOP) $(RTL) \
 		--exe $(TB) \
 		--build \
 		--trace
