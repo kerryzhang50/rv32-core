@@ -1,15 +1,18 @@
-TOP = instr_fields
+TOP = decode_top
 
 RTL = \
-    rtl/core/instr_fields.sv
+    rtl/core/rv32_pkg.sv \
+    rtl/core/instr_fields.sv \
+    rtl/core/control_decoder.sv \
+    rtl/core/decode_top.sv
 
-TB = sim/tb_instr_fields.cpp
+TB = sim/tb_decode.cpp
 
 CFLAGS = -Wall -O2
 
 all:
 	verilator \
-		--cc $(RTL) \
+		--top decode_top --cc $(RTL) \
 		--exe $(TB) \
 		--build \
 		--trace
