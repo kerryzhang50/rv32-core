@@ -1,16 +1,15 @@
-TOP = alu
+TOP = instr_fields
 
 RTL = \
-    rtl/core/rv32_pkg.sv \
-    rtl/core/alu.sv
+    rtl/core/instr_fields.sv
 
-TB = sim/tb_alu.cpp
+TB = sim/tb_instr_fields.cpp
 
 CFLAGS = -Wall -O2
 
 all:
 	verilator \
-		--cc --top-module $(TOP) $(RTL) \
+		--cc $(RTL) \
 		--exe $(TB) \
 		--build \
 		--trace
