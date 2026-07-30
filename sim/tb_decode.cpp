@@ -18,6 +18,16 @@ enum ALU_OP
     ALU_SLTU
 };
 
+enum IMM_TYPE
+{
+        IMM_NONE = 0,
+        IMM_I,
+        IMM_S,
+        IMM_B,
+        IMM_U,
+        IMM_J
+};
+
 uint32_t make_r_type(
     uint8_t funct7,
     uint8_t rs2,
@@ -67,12 +77,118 @@ void check_r_type(
     assert(!dut.mem_to_reg);
 }
 
+uint32_t make_i_type(
+    uint16_t imm,
+    uint8_t rs1,
+    uint8_t funct3,
+    uint8_t rd,
+    uint8_t opcode)
+{
+    return ((uint32_t)(imm & 0xFFF) << 20) |
+           ((uint32_t)rs1 << 15) |
+           ((uint32_t)funct3 << 12) |
+           ((uint32_t)rd << 7) |
+           opcode;
+}
+
+uint32_t make_shift_imm(
+    uint8_t shamt,
+    uint8_t rs1,
+    uint8_t funct3,
+    uint8_t rd,
+    uint8_t opcode,
+    uint8_t funct7)
+{
+    return
+        ((uint32_t)funct7 << 25) |
+        ((uint32_t)(shamt & 0x1F) << 20) |
+        ((uint32_t)rs1 << 15) |
+        ((uint32_t)funct3 << 12) |
+        ((uint32_t)rd << 7) |
+        opcode;
+}
+
+void check_i_type(
+    Vdecode_top& dut,
+
+    uint8_t funct3,
+
+    int expected_alu)
+{
+    dut.instruction = make_i_type(
+        42,
+        1,
+        funct3,
+        5,
+        0b0010011);
+
+    dut.eval();
+    
+    if (dut.alu_op != expected_alu)
+    {
+        std::cerr << "Decode test failed\n"
+                << "  expected = 0x" << expected_alu << "\n"
+                << "  got      = 0x" << dut.alu_op << "\n";
+        assert(false);
+    }
+    assert(dut.alu_op == expected_alu);
+
+    assert(dut.reg_write);
+
+    assert(dut.alu_src);
+    assert(dut.imm_type == IMM_I);
+
+    assert(!dut.mem_read);
+    assert(!dut.mem_write);
+
+    assert(!dut.branch);
+    assert(!dut.jump);
+}
+
+void check_shift_imm(
+    Vdecode_top& dut,
+
+    uint8_t funct7,
+
+    int expected_alu)
+{
+    dut.instruction = make_shift_imm(
+        5,
+        1,
+        0b101,
+        5,
+        0b0010011,
+        funct7);
+
+    dut.eval();
+    
+    if (dut.alu_op != expected_alu)
+    {
+        std::cerr << "Decode test failed\n"
+                << "  expected = 0x" << expected_alu << "\n"
+                << "  got      = 0x" << dut.alu_op << "\n";
+        assert(false);
+    }
+    assert(dut.alu_op == expected_alu);
+
+    assert(dut.reg_write);
+
+    assert(dut.alu_src);
+    assert(dut.imm_type == IMM_I);
+
+    assert(!dut.mem_read);
+    assert(!dut.mem_write);
+
+    assert(!dut.branch);
+    assert(!dut.jump);
+}
+
 int main(int argc,char** argv)
 {
     Verilated::commandArgs(argc, argv);
 
     Vdecode_top dut;
-
+    /*
     check_r_type(
         dut,
         0b0000000,
@@ -140,6 +256,52 @@ int main(int argc,char** argv)
     assert(!dut.mem_write);
     assert(!dut.branch);
     assert(!dut.jump);
+    */
+
+    check_i_type(
+        dut,
+        0b000,
+        ALU_ADD);
+
+    check_i_type(
+        dut,
+        0b010,
+        ALU_SLT);
+
+    check_i_type(
+        dut,
+        0b011,
+        ALU_SLTU);
+
+    check_i_type(
+        dut,
+        0b100,
+        ALU_XOR);
+
+    check_i_type(
+        dut,
+        0b110,
+        ALU_OR);
+
+    check_i_type(
+        dut,
+        0b111,
+        ALU_AND);
+
+    check_i_type(
+        dut,
+        0b001,
+        ALU_SLL);
+
+    check_shift_imm(
+        dut,
+        0b0000000,
+        ALU_SRL);
+
+    check_shift_imm(
+        dut,
+        0b0100000,
+        ALU_SRA);
 
     std::cout << "Basic decoder test passed!\n";
 

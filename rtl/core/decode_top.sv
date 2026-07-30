@@ -5,6 +5,7 @@ module decode_top
     input logic [31:0] instruction,
 
     output alu_op_t alu_op,
+    output imm_type_t imm_type,
 
     output logic reg_write,
     output logic mem_read,
@@ -38,6 +39,7 @@ control_decoder decoder (
     .funct7(funct7),
 
     .alu_op(alu_op),
+    .imm_type(imm_type),
 
     .reg_write(reg_write),
     .mem_read(mem_read),

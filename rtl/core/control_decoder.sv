@@ -70,6 +70,45 @@ module control_decoder
                 end
                 endcase
             end
+
+            OPCODE_OP_IMM:
+            begin
+                reg_write = 1;
+                alu_src   = 1;
+                imm_type  = IMM_I;
+                unique case(funct3)
+                F3_AND:
+                    alu_op = ALU_AND;
+                F3_OR:
+                    alu_op = ALU_OR;
+                F3_XOR:
+                    alu_op = ALU_XOR;
+                F3_SLL:
+                    alu_op = ALU_SLL;
+                F3_SLT:
+                    alu_op = ALU_SLT;
+                F3_SLTU:
+                    alu_op = ALU_SLTU;
+                F3_ADD_SUB:
+                begin
+
+                    if (funct7 == F7_NORMAL)
+                        alu_op = ALU_ADD;
+                    else if (funct7 == F7_ALT)
+                        alu_op = ALU_SUB;
+
+                end
+                F3_SRL_SRA:
+                begin
+
+                    if (funct7 == F7_NORMAL)
+                        alu_op = ALU_SRL;
+                    else if (funct7 == F7_ALT)
+                        alu_op = ALU_SRA;
+
+                end
+                endcase
+            end
             default:
             ;
         endcase
