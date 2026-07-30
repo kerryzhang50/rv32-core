@@ -4,14 +4,14 @@ module alu(
     input logic [31:0] a,
     input logic [31:0] b,
 
-    input  rv32_pkg::alu_op_t op,
+    input alu_op_t alu_op,
 
     output logic [31:0] result
 );
 
     always_comb begin
         result = 32'd0;
-        unique case (op)
+        unique case (alu_op)
         ALU_ADD:
             result = a + b;
         ALU_SUB:
