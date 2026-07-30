@@ -1,16 +1,18 @@
-TOP = imm_gen
+TOP = decode_top
 
 RTL = \
     rtl/core/rv32_pkg.sv \
-    rtl/core/imm_gen.sv
+    rtl/core/instr_fields.sv \
+    rtl/core/control_decoder.sv \
+    rtl/core/decode_top.sv
 
-TB = sim/tb_imm_gen.cpp
+TB = sim/tb_decode.cpp
 
 CFLAGS = -Wall -O2
 
 all:
 	verilator \
-		--top imm_gen --cc $(RTL) \
+		--top decode_top --cc $(RTL) \
 		--exe $(TB) \
 		--build \
 		--trace
