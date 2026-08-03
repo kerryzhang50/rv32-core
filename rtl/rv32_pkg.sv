@@ -57,4 +57,17 @@ package rv32_pkg;
         IMM_U    = 3'd4,
         IMM_J    = 3'd5
     } imm_type_t;
+
+    typedef enum logic [1:0] {
+        PC_PLUS_4,
+        PC_JAL,
+        PC_JALR,
+        PC_BRANCH
+    } pc_sel_t;
+
+    typedef enum logic [1:0] {
+        WB_ALU,
+        WB_PC4,
+        WB_MEM
+    } wb_sel_t;
 endpackage

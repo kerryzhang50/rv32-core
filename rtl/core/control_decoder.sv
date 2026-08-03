@@ -8,6 +8,8 @@ module control_decoder
 
     output alu_op_t alu_op,
     output imm_type_t imm_type,
+    output pc_sel_t pc_sel,
+    output wb_sel_t wb_sel,
 
     output logic reg_write,
     output logic mem_read,
@@ -22,6 +24,9 @@ module control_decoder
         alu_op      = ALU_ADD;
         imm_type    = IMM_NONE;
 
+        pc_sel = PC_PLUS_4;
+        wb_sel = WB_ALU;
+        
         reg_write   = 0;
 
         mem_read    = 0;
@@ -37,6 +42,8 @@ module control_decoder
             OPCODE_OP:
             begin
                 reg_write = 1;
+                pc_sel = PC_PLUS_4;
+                wb_sel = WB_ALU;
                 unique case(funct3)
                 F3_AND:
                     alu_op = ALU_AND;
@@ -76,6 +83,8 @@ module control_decoder
                 reg_write = 1;
                 alu_src   = 1;
                 imm_type  = IMM_I;
+                pc_sel = PC_PLUS_4;
+                wb_sel = WB_ALU;
                 unique case(funct3)
                 F3_AND:
                     alu_op = ALU_AND;
@@ -108,6 +117,27 @@ module control_decoder
 
                 end
                 endcase
+            end
+            OPCODE_JAL:
+            begin
+                reg_write = 1;
+                imm_type = IMM_J;
+                branch = 0;
+                jump = 1;
+                alu_src = 0;
+                pc_sel = PC_JAL;
+                wb_sel = WB_PC4;
+            end
+            OPCODE_JALR:
+            begin
+                pc_sel = PC_JALR;
+                wb_sel = WB_PC4;
+
+                reg_write = 1;
+                jump = 1;
+                alu_src = 1;
+                imm_type = IMM_I;
+                alu_op = ALU_ADD;
             end
             default:
             ;
