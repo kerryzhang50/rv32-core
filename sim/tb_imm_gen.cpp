@@ -4,20 +4,37 @@
 #include "Vimm_gen.h"
 #include "verilated.h"
 
-enum IMM_TYPE
-{
-    IMM_NONE = 0,
-    IMM_I,
-    IMM_S,
-    IMM_B,
-    IMM_U,
-    IMM_J
+enum imm_type_t {
+        IMM_NONE = 0,
+        IMM_I,
+        IMM_S,
+        IMM_B,
+        IMM_U,
+        IMM_J
 };
 
-// Helper to construct the immediate field
-uint32_t make_i_type_imm(uint16_t imm12)
+void check(
+    Vimm_gen& dut,
+    uint32_t instruction,
+    imm_type_t type,
+    int32_t expected,
+    const char* test_name)
 {
-    return ((uint32_t)(imm12 & 0xFFF)) << 20;
+    dut.instruction = instruction;
+    dut.imm_type = type;
+    dut.eval();
+
+    if ((int32_t)dut.immediate != expected)
+    {
+        std::cerr
+            << test_name
+            << " failed!\n"
+            << "Expected: " << expected
+            << "\nGot:      " << (int32_t)dut.immediate
+            << std::endl;
+
+        std::abort();
+    }
 }
 
 int main(int argc, char** argv)
@@ -26,48 +43,55 @@ int main(int argc, char** argv)
 
     Vimm_gen dut;
 
-    // Test 1: Positive Number
-    dut.instruction = make_i_type_imm(42);
-    dut.imm_type = IMM_I;
+    // Tests go here...
+    // Test 1 — I-Type (Positive)
+    check(
+        dut,
+        0x00A00093,
+        IMM_I,
+        10,
+        "I-type positive");
 
-    dut.eval();
+    // Test 2 — I-Type (Negative)
+    check(
+        dut,
+        0xFFF00093,
+        IMM_I,
+        -1,
+        "I-type negative");
 
-    assert(dut.immediate == 42);
+    // Test 3 — S-Type
+    check(
+        dut,
+        0x0053A023,
+        IMM_S,
+        0,
+        "S-type");
 
-    // Test 2: Zero
-    dut.instruction = make_i_type_imm(0);
+    // Test 4 — B-Type
+    check(
+        dut,
+        0x00628463,
+        IMM_B,
+        8,
+        "B-type");
 
-    dut.eval();
+    // Test 5 — U-Type
+    check(
+        dut,
+        0x123452B7,
+        IMM_U,
+        0x12345000,
+        "U-type");
 
-    assert(dut.immediate == 0);
+    // Test 6 — J-Type
+    check(
+        dut,
+        0x00C000EF,
+        IMM_J,
+        12,
+        "J-type");
 
-    // Test 3: -1
-    dut.instruction = make_i_type_imm(0xFFF);
-
-    dut.eval();
-
-    assert((int32_t)dut.immediate == -1);
-
-    // Test 4: -8
-    dut.instruction = make_i_type_imm(0xFF8);
-
-    dut.eval();
-
-    assert((int32_t)dut.immediate == -8);
-
-    // Test 5: Largest Positive
-    dut.instruction = make_i_type_imm(0x7FF);
-
-    dut.eval();
-
-    assert((int32_t)dut.immediate == 2047);
-
-    // Test 6: Smallest Negative
-    dut.instruction = make_i_type_imm(0x800);
-
-    dut.eval();
-
-    assert((int32_t)dut.immediate == -2048);
-
-    std::cout << "Basic immediate generator test passed!\n";
+    std::cout << "All imm_gen tests passed!\n";
+    return 0;
 }
