@@ -1,5 +1,7 @@
 VERILATOR = verilator
 
+ASM = add_test
+
 RTL = \
 	../rtl/rv32_pkg.sv \
     ../rtl/core/rv32_core.sv \
@@ -22,6 +24,15 @@ build:
 
 run:
 	./obj_dir/Vsim_top
+
+assemble:
+	riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -nostdlib -T ../linker.ld ../tests/asm/$(ASM).S -o ../tests/elf/$(ASM).elf
+
+disassemble:
+	riscv64-unknown-elf-objdump -d ../tests/elf/$(ASM).elf
+
+convert:
+	riscv64-unknown-elf-objcopy -O verilog ../tests/elf/$(ASM).elf ../tests/hex/$(ASM).hex
 
 clean:
 	rm -rf obj_dir
