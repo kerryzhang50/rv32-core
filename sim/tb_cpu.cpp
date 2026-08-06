@@ -29,10 +29,10 @@ int main(int argc,char** argv)
 
     dut->rst = 0;
 
-    for (int cycle = 0; cycle < 10; cycle++)
+    for (int cycle = 0; cycle < 30; cycle++)
     {
         std::cout
-            << "Cycle " << cycle
+            << "Cycle " << std::dec << cycle
             << "  PC = 0x"
             << std::hex << dut->dbg_pc
             << "  Instr = 0x"
@@ -42,15 +42,24 @@ int main(int argc,char** argv)
         {
             std::cout
                 << "  Write x"
-                << std::dec
+                << std::hex
                 << (int)dut->dbg_rd
                 << " = "
                 << dut->dbg_write_data;
         }
 
-        std::cout << std::endl;
-
         tick(dut);
+        /*
+        std::cout
+            << " dmem.valid=" << +dut->req_valid
+            << " write=" << +dut->req_write
+            << " addr=0x" << std::hex << dut->req_addr
+            << " wdata=" << std::dec << dut->req_wdata
+            << " stall=" << +dut->dbg_stall
+            << " resp.valid=" << +dut->resp_valid
+            << std::endl;
+        */
+        std::cout << std::endl;
     }
 
     delete dut;
