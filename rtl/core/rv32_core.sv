@@ -1,4 +1,5 @@
 import rv32_pkg::*;
+import mem_if::*;
 
 module rv32_core
 (
@@ -12,7 +13,18 @@ module rv32_core
     output logic [31:0] dbg_instr,
     output logic        dbg_reg_write,
     output logic [4:0]  dbg_rd,
-    output logic [31:0] dbg_write_data
+    output logic [31:0] dbg_write_data,
+
+    output  logic        req_valid,
+    output  logic        req_write,
+    output  logic [31:0] req_addr,
+    output  logic [31:0] req_wdata,
+    output  logic [3:0]  req_wstrb,
+
+    output logic        resp_valid,
+    output logic [31:0] resp_rdata,
+
+    output logic dbg_stall
 );
 
     // From instruction memory
@@ -40,7 +52,9 @@ module rv32_core
 
     logic reg_write;
 
-    logic alu_src;
+    logic alu_a_sel;
+
+    logic alu_b_sel;
 
     pc_sel_t pc_sel;
 
@@ -64,24 +78,32 @@ module rv32_core
     logic branch;
     logic jump;
     logic mem_to_reg;
+    logic [1:0] mem_size;
+    logic mem_unsigned;
 
-    /*
-    // Jump target
-    logic [31:0] jump_target;
+    // Branch variable
+    logic take_branch;
 
-    assign jump_target = pc + immediate;
+    // Memory request
+    dmem_req_t  dmem_req;
+    dmem_resp_t dmem_resp;
 
-    // Jalr target
-    logic [31:0] jalr_target;
+    // Stall
+    logic stall;
+    logic start_load;
+    logic finish_load;
 
-    assign jalr_target = (rs1_data + immediate) & 32'hFFFF_FFFE;
-    */
+    assign start_load = mem_read && !stall;
+    assign finish_load = stall && dmem_resp.valid;
 
     // ALU Operand MUX
+    logic [31:0] alu_operand_a;
+
+    assign alu_operand_a = (alu_a_sel == ALU_A_PC) ? pc : rs1_data;
 
     logic [31:0] alu_operand_b;
 
-    assign alu_operand_b = alu_src ? immediate : rs2_data;
+    assign alu_operand_b = alu_b_sel ? immediate : rs2_data;
 
     // Simple Memory
     assign imem_addr = pc;
@@ -90,7 +112,7 @@ module rv32_core
     // Exposed regfile write enable
     logic rf_we;
 
-    assign rf_we = reg_write && (rd != 5'd0);
+    assign rf_we = (!stall && reg_write && !mem_read && rd != 0) || finish_load;
 
     // Debug variables
     assign dbg_pc = pc;
@@ -100,11 +122,33 @@ module rv32_core
     assign dbg_rd        = rd;
     assign dbg_write_data = writeback_data;    
 
+    assign dbg_stall = stall;
+
+    // Address offset for store/load
+    logic [1:0] addr_offset;
+
+    assign addr_offset = alu_result[1:0];
+
+    // Load/store variables
+    logic [31:0] load_data;
+    logic [31:0] store_wdata;
+    logic [3:0]  store_wstrb;
+
     always_ff @(posedge clk) begin
-        if (rst)
-            pc <= 32'd0;
-        else
-            pc <= pc_next;
+        if (rst) begin
+            pc <= 0;
+            stall <= 0;
+        end
+        else begin
+            if (finish_load) begin
+                stall <= 0;
+                pc <= pc_next;
+            end
+            else if (start_load)
+                stall <= 1;
+            else if (!stall)
+                pc <= pc_next;
+        end
     end
 
     // PC_next MUX
@@ -118,6 +162,12 @@ module rv32_core
 
             PC_JALR:
                 pc_next = (rs1_data + immediate) & 32'hFFFF_FFFE;
+
+            PC_BRANCH:
+                if (take_branch)
+                    pc_next = pc + immediate;
+                else
+                    pc_next = pc + 4;
 
             default:
                 pc_next = pc + 32'd4;
@@ -134,14 +184,29 @@ module rv32_core
             WB_PC4:
                 writeback_data = pc + 32'd4;
 
-            //WB_MEM:
-                //writeback_data = /* data memory */;
+            WB_MEM:
+                writeback_data = load_data;
 
             default:
                 writeback_data = 32'd0;
 
         endcase
     end
+
+    // Drive deme_req
+    assign dmem_req.valid = (mem_read || mem_write) && !stall;
+    assign dmem_req.write = mem_write;
+    assign dmem_req.addr = alu_result;
+    assign dmem_req.wdata = store_wdata;
+    assign dmem_req.wstrb = store_wstrb;
+
+    assign req_valid = dmem_req.valid;
+    assign req_write = dmem_req.write;
+    assign req_addr = dmem_req.addr;
+    assign req_wdata = dmem_req.wdata;
+    assign req_wstrb = dmem_req.wstrb;
+
+    assign resp_valid = dmem_resp.valid;
 
     instr_fields fields(
         .instruction(instruction),
@@ -162,14 +227,17 @@ module rv32_core
         .imm_type(imm_type),
         .pc_sel(pc_sel),
         .wb_sel(wb_sel),
+        .alu_a_sel(alu_a_sel),
 
         .reg_write(reg_write),
         .mem_read(mem_read),
         .mem_write(mem_write),
         .branch(branch),
         .jump(jump),
-        .alu_src(alu_src),
-        .mem_to_reg(mem_to_reg)
+        .alu_b_sel(alu_b_sel),
+        .mem_to_reg(mem_to_reg),
+        .mem_size(mem_size),
+        .mem_unsigned(mem_unsigned)
     );
 
     imm_gen imm(
@@ -194,12 +262,50 @@ module rv32_core
     );
 
     alu alu0(
-        .a(rs1_data),
+        .a(alu_operand_a),
         .b(alu_operand_b),
 
         .alu_op(alu_op),
 
         .result(alu_result)
+    );
+
+    branch_unit bu(
+        .rs1(rs1_data),
+        .rs2(rs2_data),
+
+        .funct3(funct3),
+
+        .take_branch(take_branch)
+    );
+
+    simple_dmem #(
+        .DEPTH(256)
+    ) dmem (
+        .clk(clk),
+        .rst(rst),
+        .req_valid(dmem_req.valid),
+        .req_write(dmem_req.write),
+        .req_addr(dmem_req.addr),
+        .req_wdata(dmem_req.wdata),
+        .req_wstrb(dmem_req.wstrb),
+        .resp_valid(dmem_resp.valid),
+        .resp_rdata(dmem_resp.rdata)
+    );
+
+    load_unit lu(
+        .mem_word(dmem_resp.rdata),
+        .addr_offset(addr_offset),
+        .funct3(funct3),
+        .load_data(load_data)
+    );
+
+    store_unit su(
+        .addr_offset(addr_offset),
+        .funct3(funct3),
+        .rs2_data(rs2_data),
+        .wdata(store_wdata),
+        .wstrb(store_wstrb)
     );
 
 endmodule
