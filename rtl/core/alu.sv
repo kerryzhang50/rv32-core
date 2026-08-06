@@ -32,6 +32,8 @@ module alu(
             result = ($signed(a) < $signed(b)) ? 32'd1 : 32'd0;
         ALU_SLTU:
             result = (a < b) ? 32'd1 : 32'd0;
+        ALU_COPY_B:
+            result = b;
         endcase
     end
 endmodule
