@@ -11,7 +11,8 @@ package rv32_pkg;
         ALU_SRL  = 4'd6,
         ALU_SRA  = 4'd7,
         ALU_SLT  = 4'd8,
-        ALU_SLTU = 4'd9
+        ALU_SLTU = 4'd9,
+        ALU_COPY_B = 4'd10
 
     } alu_op_t;
 
@@ -42,6 +43,29 @@ package rv32_pkg;
 
     } funct3_alu_t;
 
+    typedef enum logic [2:0] {
+        F3_BEQ  = 3'b000,
+        F3_BNE  = 3'b001,
+        F3_BLT  = 3'b100,
+        F3_BGE  = 3'b101,
+        F3_BLTU = 3'b110,
+        F3_BGEU = 3'b111
+    } funct3_branch_t;
+
+    typedef enum logic [2:0] {
+        F3_LB  = 3'b000,
+        F3_LH  = 3'b001,
+        F3_LW  = 3'b010,
+        F3_LBU = 3'b100,
+        F3_LHU = 3'b101
+    } funct3_load_t;
+
+    typedef enum logic [2:0] {
+        F3_SB = 3'b000,
+        F3_SH = 3'b001,
+        F3_SW = 3'b010
+    } funct3_store_t;
+
     typedef enum logic [6:0] {
 
         F7_NORMAL = 7'b0000000,
@@ -70,4 +94,23 @@ package rv32_pkg;
         WB_PC4,
         WB_MEM
     } wb_sel_t;
+
+    typedef enum logic [1:0] {
+        BYTE,
+        HALF,
+        WORD
+    } mem_size_t;
+
+    typedef struct packed {
+        logic        mem_read;
+        logic        mem_write;
+
+        mem_size_t   mem_size;
+        logic        mem_unsigned;
+    } mem_ctrl_t;
+
+    typedef enum logic {
+        ALU_A_RS1,
+        ALU_A_PC
+    } alu_a_sel_t;
 endpackage
