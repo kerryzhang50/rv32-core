@@ -73,7 +73,7 @@ void check_r_type(
     assert(!dut.branch);
     assert(!dut.jump);
 
-    assert(!dut.alu_src);
+    assert(!dut.alu_b_sel);
     assert(!dut.mem_to_reg);
 }
 
@@ -135,7 +135,7 @@ void check_i_type(
 
     assert(dut.reg_write);
 
-    assert(dut.alu_src);
+    assert(dut.alu_b_sel);
     assert(dut.imm_type == IMM_I);
 
     assert(!dut.mem_read);
@@ -173,7 +173,7 @@ void check_shift_imm(
 
     assert(dut.reg_write);
 
-    assert(dut.alu_src);
+    assert(dut.alu_b_sel);
     assert(dut.imm_type == IMM_I);
 
     assert(!dut.mem_read);
