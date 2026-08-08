@@ -113,4 +113,49 @@ package rv32_pkg;
         ALU_A_RS1,
         ALU_A_PC
     } alu_a_sel_t;
+
+    typedef struct packed {
+
+    logic reg_write;
+
+    logic mem_read;
+    logic mem_write;
+
+    logic mem_to_reg;
+
+    logic alu_b_sel;
+
+    logic branch;
+    logic jump;
+
+    alu_op_t alu_op;
+
+} control_t;
+
+typedef struct packed {
+
+    logic [31:0] pc;
+    logic [31:0] instr;
+
+} if_id_t;
+
+typedef struct packed {
+
+    logic [31:0] pc;
+
+    logic [31:0] rs1_data;
+    logic [31:0] rs2_data;
+
+    logic [31:0] immediate;
+
+    logic [4:0] rs1;
+    logic [4:0] rs2;
+    logic [4:0] rd;
+
+    logic [2:0] funct3;
+
+    control_t control;
+
+} id_ex_t;
+
 endpackage

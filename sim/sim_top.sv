@@ -44,7 +44,7 @@ rv32_core core(
     .req_wstrb(req_wstrb),
 
     .resp_valid(resp_valid),
-    .resp_rdata(oresp_rdata),
+    .resp_rdata(resp_rdata),
 
     .dbg_stall(dbg_stall)
 

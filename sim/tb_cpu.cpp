@@ -29,7 +29,7 @@ int main(int argc,char** argv)
 
     dut->rst = 0;
 
-    for (int cycle = 0; cycle < 30; cycle++)
+    for (int cycle = 0; cycle < 10; cycle++)
     {
         std::cout
             << "Cycle " << std::dec << cycle
