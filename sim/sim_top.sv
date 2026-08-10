@@ -51,7 +51,7 @@ rv32_core core(
 );
 
 imem #(
-    .INIT_FILE("../tests/hex/ls_test.hex")
+    .INIT_FILE("../tests/hex/pipeline_test.hex")
 ) imem0(
     .addr(imem_addr),
     .instruction(imem_rdata)

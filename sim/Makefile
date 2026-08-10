@@ -1,6 +1,6 @@
 VERILATOR = verilator
 
-ASM = ls_test
+ASM = pipeline_test
 
 RTL = \
 	../rtl/rv32_pkg.sv \
@@ -16,6 +16,8 @@ RTL = \
 	../rtl/mem/simple_dmem.sv \
 	../rtl/core/load_unit.sv \
 	../rtl/core/store_unit.sv \
+	../rtl/core/if_id_reg.sv \
+	../rtl/core/id_ex_reg.sv \
     sim_top.sv
 
 build:
