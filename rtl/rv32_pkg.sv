@@ -135,14 +135,14 @@ package rv32_pkg;
     } control_t;
 
     typedef struct packed {
-
+        logic        valid;
         logic [31:0] pc;
         logic [31:0] instr;
 
     } if_id_t;
 
     typedef struct packed {
-
+        logic        valid;
         logic [31:0] pc;
 
         logic [31:0] rs1_data;

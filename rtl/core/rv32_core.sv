@@ -184,6 +184,9 @@ module rv32_core
 
     assign id_ex_in.control     = control;
 
+    assign if_id_in.valid = 1'b1;
+    assign id_ex_in.valid = if_id_out.valid;
+
     always_ff @(posedge clk) begin
         if (rst)
             pc <= 32'h0;
@@ -193,7 +196,9 @@ module rv32_core
 
     assign pc_next = pc + 32'd4;
 
-    assign rf_we = id_ex_out.control.reg_write;
+    assign rf_we =
+        id_ex_out.valid &&
+        id_ex_out.control.reg_write;
 /*
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -255,8 +260,12 @@ module rv32_core
     end
 
     // Drive deme_req
-    assign dmem_req.valid = (mem_read || mem_write) && !stall;
-    assign dmem_req.write = mem_write;
+    assign dmem_req.valid =
+        id_ex_out.valid &&
+        id_ex_out.control.mem_read;
+    assign dmem_req.write =
+        id_ex_out.valid &&
+        id_ex_out.control.mem_write;
     assign dmem_req.addr = alu_result;
     assign dmem_req.wdata = store_wdata;
     assign dmem_req.wstrb = store_wstrb;
