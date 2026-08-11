@@ -24,8 +24,16 @@ module rv32_core
     output logic        resp_valid,
     output logic [31:0] resp_rdata,
 
-    output logic dbg_stall
-);
+    output logic dbg_stall,
+
+    output logic dbg_branch,
+    output logic dbg_take_branch,
+    output logic [31:0] dbg_branch_rs1,
+    output logic [31:0] dbg_branch_rs2,
+    output logic dbg_redirect,
+    output logic [31:0] dbg_redirect_pc
+);  
+    // VARIABLES
 
     // From instruction memory
     logic [31:0] instruction;
@@ -117,21 +125,68 @@ module rv32_core
     if_id_t if_id_in;
     if_id_t if_id_out;
 
-    assign start_load = mem_read && !stall;
-    assign finish_load = stall && dmem_resp.valid;    
+    // Redirect signals for branching
+    logic        redirect;
+    logic [31:0] redirect_pc;
 
-    //assign alu_operand_a = (alu_a_sel == ALU_A_PC) ? pc : rs1_data;
-    //assign alu_operand_b = alu_b_sel ? immediate : rs2_data;
+    // Branch target
+    logic [31:0] branch_target;
+
+    // Jump targets
+    logic [31:0] jal_target;
+    logic [31:0] jalr_target;
+
+    // Forwarding signals
+    logic [31:0] forwarded_rs1;
+    logic [31:0] forwarded_rs2;
+
+    logic forward_rs1;
+    logic forward_rs2;
+
+    // Previous EX instructions
+    logic [4:0] ex_rd;
+    logic       ex_reg_write;
+    logic [31:0] ex_result;
+
+    // Load hazard
+    logic load_use_hazard;
+
+    logic uses_rs1;
+    logic uses_rs2;
+
+    // Memory-wait state
+    logic mem_stall;
+    logic start_mem;
+    logic finish_mem;
+
+    // Memory pending state
+    logic mem_pending;
+
+    // Load metadata
+    logic [4:0] load_rd;
+    logic [2:0] load_funct3;
+    logic [1:0] load_addr_offset;
+    //logic       load_unsigned;
+
+    // Load writeback
+
+    logic load_wb;
+
+    logic [4:0] rf_rd;
+
+    // LOGIC
+
+    assign finish_load = stall && dmem_resp.valid;
 
     assign alu_operand_a =
-    (id_ex_out.control.alu_a_sel == ALU_A_PC)
-        ? id_ex_out.pc
-        : id_ex_out.rs1_data;
+        (id_ex_out.control.alu_a_sel == ALU_A_PC)
+            ? id_ex_out.pc
+            : forwarded_rs1;
 
     assign alu_operand_b =
-    id_ex_out.control.alu_b_sel
-        ? id_ex_out.immediate
-        : id_ex_out.rs2_data;
+        id_ex_out.control.alu_b_sel
+            ? id_ex_out.immediate
+            : forwarded_rs2;
 
     // Simple Memory
     assign imem_addr = pc;
@@ -144,10 +199,10 @@ module rv32_core
     assign dbg_instr = instruction;
 
     assign dbg_reg_write = rf_we;
-    assign dbg_rd        = id_ex_out.rd;
+    assign dbg_rd        = rf_rd;
     assign dbg_write_data = writeback_data;    
 
-    assign dbg_stall = stall;
+    assign dbg_stall = mem_stall || load_use_hazard;
 
     assign addr_offset = alu_result[1:0];
 
@@ -180,6 +235,7 @@ module rv32_core
         control.jump       = jump;
         control.alu_op     = alu_op;
         control.wb_sel = wb_sel;
+        control.pc_sel = pc_sel;
     end
 
     assign id_ex_in.control     = control;
@@ -187,18 +243,51 @@ module rv32_core
     assign if_id_in.valid = 1'b1;
     assign id_ex_in.valid = if_id_out.valid;
 
+    assign rf_we =
+        (
+            id_ex_out.valid &&
+            id_ex_out.control.reg_write &&
+            !id_ex_out.control.mem_read &&
+            (id_ex_out.rd != 5'd0)
+        )
+        ||
+        (
+            load_wb &&
+            (load_rd != 5'd0)
+        );
+
+    assign branch_target = id_ex_out.pc + id_ex_out.immediate;
+
+    always_comb begin
+        redirect = 1'b0;
+        redirect_pc = pc + 32'd4;
+
+        if (id_ex_out.control.branch && take_branch) begin
+            redirect = 1'b1;
+            redirect_pc = id_ex_out.pc + id_ex_out.immediate;
+        end
+        else if (id_ex_out.control.jump) begin
+            redirect = 1'b1;
+
+            if (id_ex_out.control.pc_sel == PC_JAL)
+                redirect_pc = id_ex_out.pc + id_ex_out.immediate;
+
+            else if (id_ex_out.control.pc_sel == PC_JALR)
+                redirect_pc =
+                    (id_ex_out.rs1_data + id_ex_out.immediate)
+                    & 32'hFFFF_FFFE;
+        end
+    end
+
     always_ff @(posedge clk) begin
         if (rst)
             pc <= 32'h0;
-        else
-            pc <= pc_next;
+        else if (redirect)
+            pc <= redirect_pc;
+        else if (!load_use_hazard && !mem_stall)
+            pc <= pc + 32'd4;
     end
 
-    assign pc_next = pc + 32'd4;
-
-    assign rf_we =
-        id_ex_out.valid &&
-        id_ex_out.control.reg_write;
 /*
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -242,27 +331,159 @@ module rv32_core
 */
     // Writeback MUX
     always_comb begin
-        unique case (id_ex_out.control.wb_sel)
+        if (load_wb) begin
+            writeback_data = load_data;
+        end
+        else begin
+            unique case (id_ex_out.control.wb_sel)
+                WB_ALU:
+                    writeback_data = alu_result;
 
-            WB_ALU:
-                writeback_data = alu_result;
+                WB_PC4:
+                    writeback_data = id_ex_out.pc + 32'd4;
 
-            WB_PC4:
-                writeback_data = id_ex_out.pc + 32'd4;
+                default:
+                    writeback_data = 32'd0;
+            endcase
+        end
+    end
 
-            WB_MEM:
-                writeback_data = load_data;
+    // Forwarding
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            ex_rd        <= 5'd0;
+            ex_reg_write <= 1'b0;
+            ex_result    <= 32'd0;
+        end
+        else begin
+            ex_rd        <= id_ex_out.rd;
+            ex_reg_write <= id_ex_out.valid &&
+                            id_ex_out.control.reg_write;
+            ex_result    <= writeback_data;
+        end
+    end
 
-            default:
-                writeback_data = 32'd0;
+    assign forward_rs1 =
+        ex_reg_write &&
+        ex_rd != 5'd0 &&
+        ex_rd == id_ex_out.rs1;
+
+    assign forward_rs2 =
+        ex_reg_write &&
+        ex_rd != 5'd0 &&
+        ex_rd == id_ex_out.rs2;
+
+    assign forwarded_rs1 =
+        forward_rs1 ? ex_result : id_ex_out.rs1_data;
+
+    assign forwarded_rs2 =
+        forward_rs2 ? ex_result : id_ex_out.rs2_data;
+
+    always_comb begin
+        uses_rs1 = 1'b0;
+        uses_rs2 = 1'b0;
+
+        unique case (opcode)
+
+            OPCODE_OP: begin
+                uses_rs1 = 1'b1;
+                uses_rs2 = 1'b1;
+            end
+
+            OPCODE_OP_IMM: begin
+                uses_rs1 = 1'b1;
+            end
+
+            OPCODE_LOAD: begin
+                uses_rs1 = 1'b1;
+            end
+
+            OPCODE_STORE: begin
+                uses_rs1 = 1'b1;
+                uses_rs2 = 1'b1;
+            end
+
+            OPCODE_BRANCH: begin
+                uses_rs1 = 1'b1;
+                uses_rs2 = 1'b1;
+            end
+
+            OPCODE_JALR: begin
+                uses_rs1 = 1'b1;
+            end
+
+            default: begin
+            end
 
         endcase
     end
 
+    assign load_use_hazard =
+        id_ex_out.valid &&
+        id_ex_out.control.mem_read &&
+        id_ex_out.rd != 5'd0 &&
+        (
+            (uses_rs1 && (id_ex_out.rd == rs1)) ||
+            (uses_rs2 && (id_ex_out.rd == rs2))
+        );
+
+    assign start_mem =
+        id_ex_out.valid &&
+        (id_ex_out.control.mem_read ||
+        id_ex_out.control.mem_write) &&
+        !mem_stall;
+
+    assign finish_mem =
+        mem_stall &&
+        dmem_resp.valid;
+
+    assign start_load =
+        id_ex_out.valid &&
+        id_ex_out.control.mem_read &&
+        !mem_stall;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            mem_pending <= 1'b0;
+        end
+        else begin
+            if (dmem_req.valid && !dmem_req.write)
+                mem_pending <= 1'b1;
+            else if (mem_pending && dmem_resp.valid)
+                mem_pending <= 1'b0;
+        end
+    end
+
+    assign mem_stall = mem_pending;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            load_rd          <= 5'd0;
+            load_funct3      <= 3'd0;
+            load_addr_offset <= 2'd0;
+            //load_unsigned    <= 1'b0;
+        end
+        else if (dmem_req.valid && !dmem_req.write) begin
+            load_rd          <= id_ex_out.rd;
+            load_funct3      <= id_ex_out.funct3;
+            load_addr_offset <= alu_result[1:0];
+            //load_unsigned    <= id_ex_out.control.mem_unsigned;
+        end
+    end
+
+    assign load_wb = mem_pending && dmem_resp.valid;
+
+    assign rf_rd =
+        load_wb
+            ? load_rd
+            : id_ex_out.rd;
+
     // Drive deme_req
     assign dmem_req.valid =
         id_ex_out.valid &&
-        id_ex_out.control.mem_read;
+        (id_ex_out.control.mem_read ||
+        id_ex_out.control.mem_write) &&
+        !mem_pending;
     assign dmem_req.write =
         id_ex_out.valid &&
         id_ex_out.control.mem_write;
@@ -277,6 +498,13 @@ module rv32_core
     assign req_wstrb = dmem_req.wstrb;
 
     assign resp_valid = dmem_resp.valid;
+
+    assign dbg_branch          = id_ex_out.control.branch;
+    assign dbg_take_branch     = take_branch;
+    assign dbg_branch_rs1     = id_ex_out.rs1_data;
+    assign dbg_branch_rs2     = id_ex_out.rs2_data;
+    assign dbg_redirect       = redirect;
+    assign dbg_redirect_pc    = redirect_pc;
 
     instr_fields fields(
         .instruction(instruction),
@@ -323,7 +551,7 @@ module rv32_core
 
         .rs1(rs1),
         .rs2(rs2),
-        .rd(id_ex_out.rd),
+        .rd(rf_rd),
 
         .write_data(writeback_data),
 
@@ -350,10 +578,10 @@ module rv32_core
     );
 
     branch_unit bu(
-        .rs1(rs1_data),
-        .rs2(rs2_data),
+        .rs1(forwarded_rs1),
+        .rs2(forwarded_rs2),
 
-        .funct3(funct3),
+        .funct3(id_ex_out.funct3),
 
         .take_branch(take_branch)
     );
@@ -374,15 +602,15 @@ module rv32_core
 
     load_unit lu(
         .mem_word(dmem_resp.rdata),
-        .addr_offset(addr_offset),
-        .funct3(funct3),
+        .addr_offset(load_addr_offset),
+        .funct3(load_funct3),
         .load_data(load_data)
     );
 
     store_unit su(
         .addr_offset(addr_offset),
-        .funct3(funct3),
-        .rs2_data(rs2_data),
+        .funct3(id_ex_out.funct3),
+        .rs2_data(forwarded_rs2),
         .wdata(store_wdata),
         .wstrb(store_wstrb)
     );
@@ -392,7 +620,9 @@ module rv32_core
         .rst(rst),
 
         .d(if_id_in),
-        .q(if_id_out)
+        .q(if_id_out),
+        .flush(redirect),
+        .enable(!load_use_hazard && !mem_stall)
     );
 
     id_ex_reg id_ex_reg0 (
@@ -400,7 +630,9 @@ module rv32_core
         .rst(rst),
 
         .d(id_ex_in),
-        .q(id_ex_out)
+        .q(id_ex_out),
+        .flush(redirect || load_use_hazard),
+        .enable(!mem_stall)
     );
 
 endmodule

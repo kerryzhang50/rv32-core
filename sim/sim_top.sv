@@ -18,7 +18,14 @@ module sim_top
     output logic        resp_valid,
     output logic [31:0] resp_rdata,
 
-    output logic        dbg_stall
+    output logic        dbg_stall,
+
+    output logic dbg_branch,
+    output logic dbg_take_branch,
+    output logic [31:0] dbg_branch_rs1,
+    output logic [31:0] dbg_branch_rs2,
+    output logic dbg_redirect,
+    output logic [31:0] dbg_redirect_pc
 );
 
 logic [31:0] imem_addr;
@@ -46,12 +53,18 @@ rv32_core core(
     .resp_valid(resp_valid),
     .resp_rdata(resp_rdata),
 
-    .dbg_stall(dbg_stall)
+    .dbg_stall(dbg_stall),
 
+    .dbg_branch(dbg_branch),
+    .dbg_take_branch(dbg_take_branch),
+    .dbg_branch_rs1(dbg_branch_rs1),
+    .dbg_branch_rs2(dbg_branch_rs2),
+    .dbg_redirect(dbg_redirect),
+    .dbg_redirect_pc(dbg_redirect_pc)
 );
 
 imem #(
-    .INIT_FILE("../tests/hex/pipeline_test.hex")
+    .INIT_FILE("../tests/hex/branch_test.hex")
 ) imem0(
     .addr(imem_addr),
     .instruction(imem_rdata)

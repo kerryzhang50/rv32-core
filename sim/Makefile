@@ -1,6 +1,6 @@
 VERILATOR = verilator
 
-ASM = pipeline_test
+ASM = branch_test
 
 RTL = \
 	../rtl/rv32_pkg.sv \

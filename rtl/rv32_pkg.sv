@@ -131,6 +131,7 @@ package rv32_pkg;
 
         alu_op_t alu_op;
         wb_sel_t wb_sel;
+        pc_sel_t pc_sel;
 
     } control_t;
 

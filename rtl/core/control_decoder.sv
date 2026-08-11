@@ -164,6 +164,7 @@ module control_decoder
                 reg_write = 0;
                 imm_type = IMM_B;
                 pc_sel = PC_BRANCH;
+                branch = 1;
             end
             OPCODE_LOAD:
             begin
